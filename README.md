@@ -34,7 +34,7 @@ Add the address which can integrate the Agora Video SDK automatically through JC
 ```
 compile 'io.agora.rtc:full-sdk:2.1.0'
 ```
-(This sample program has added this address and do not need to add again. Adding the link address is the most important step if you want to integrate the Agora Video SDK in your own application.)
+(Adding the link address is the most important step if you want to integrate the Agora Video SDK in your own application.)
 
 - Alternative way to integrate:
 
