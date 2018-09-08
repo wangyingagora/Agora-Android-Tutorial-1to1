@@ -1,6 +1,7 @@
 package io.agora.tutorials1v1vcall;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
@@ -15,18 +16,28 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
+
 import io.agora.rtc.Constants;
 import io.agora.rtc.IRtcEngineEventHandler;
 import io.agora.rtc.RtcEngine;
 import io.agora.rtc.video.VideoCanvas;
 
 public class VideoChatViewActivity extends AppCompatActivity {
+    static {
+        System.loadLibrary("agora-rtc-sdk-jni");
+        System.loadLibrary("native-lib");
+    }
 
     private static final String LOG_TAG = VideoChatViewActivity.class.getSimpleName();
 
     private static final int PERMISSION_REQ_ID_RECORD_AUDIO = 22;
     private static final int PERMISSION_REQ_ID_CAMERA = PERMISSION_REQ_ID_RECORD_AUDIO + 1;
 
+    private long mEngine;
     private RtcEngine mRtcEngine;// Tutorial Step 1
     private final IRtcEngineEventHandler mRtcEventHandler = new IRtcEngineEventHandler() { // Tutorial Step 1
         @Override
@@ -72,7 +83,7 @@ public class VideoChatViewActivity extends AppCompatActivity {
 
     private void initAgoraEngineAndJoinChannel() {
         initializeAgoraEngine();     // Tutorial Step 1
-        setupVideoProfile();         // Tutorial Step 2
+        // setupVideoProfile();         // Tutorial Step 2
         setupLocalVideo();           // Tutorial Step 3
         joinChannel();               // Tutorial Step 4
     }
@@ -181,8 +192,44 @@ public class VideoChatViewActivity extends AppCompatActivity {
         finish();
     }
 
+    public SurfaceView getSurfaceView() {
+        FrameLayout layout = (FrameLayout) findViewById(R.id.local_video_view_container);
+        return (SurfaceView) layout.getChildAt(0);
+    }
+
+    public SurfaceView getRemoteSurfaceView() {
+        FrameLayout layout = (FrameLayout) findViewById(R.id.remote_video_view_container);
+        SurfaceView surfaceView = (SurfaceView) layout.getChildAt(0);
+        return surfaceView;
+    }
+
+    private void createRemoteVideo(final int uid) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                FrameLayout container = (FrameLayout) findViewById(R.id.remote_video_view_container);
+
+                if (container.getChildCount() >= 1) {
+                    return;
+                }
+
+                SurfaceView surfaceView = RtcEngine.CreateRendererView(getBaseContext());
+                container.addView(surfaceView);
+                // mRtcEngine.setupRemoteVideo(new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_ADAPTIVE, uid));
+
+                surfaceView.setTag(uid); // for mark purpose
+                View tipMsg = findViewById(R.id.quick_tips_when_use_agora_sdk); // optional UI
+                tipMsg.setVisibility(View.GONE);
+
+                setupRemoteView(mEngine, uid);
+            }
+        });
+    }
+
     // Tutorial Step 1
     private void initializeAgoraEngine() {
+        mEngine = startAgoraEngine(this, false);
+        /*
         try {
             mRtcEngine = RtcEngine.create(getBaseContext(), getString(R.string.agora_app_id), mRtcEventHandler);
         } catch (Exception e) {
@@ -190,6 +237,7 @@ public class VideoChatViewActivity extends AppCompatActivity {
 
             throw new RuntimeException("NEED TO check rtc sdk init fatal error\n" + Log.getStackTraceString(e));
         }
+        */
     }
 
     // Tutorial Step 2
@@ -204,12 +252,14 @@ public class VideoChatViewActivity extends AppCompatActivity {
         SurfaceView surfaceView = RtcEngine.CreateRendererView(getBaseContext());
         surfaceView.setZOrderMediaOverlay(true);
         container.addView(surfaceView);
-        mRtcEngine.setupLocalVideo(new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_ADAPTIVE, 0));
+        setupLocalView(mEngine, null);
+        // mRtcEngine.setupLocalVideo(new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_ADAPTIVE, 0));
     }
 
     // Tutorial Step 4
     private void joinChannel() {
-        mRtcEngine.joinChannel(null, "demoChannel1", "Extra Optional Data", 0); // if you do not specify the uid, we will generate the uid for you
+        joinChannel(mEngine, "aaaaaa");
+        // mRtcEngine.joinChannel(null, "demoChannel1", "Extra Optional Data", 0); // if you do not specify the uid, we will generate the uid for you
     }
 
     // Tutorial Step 5
@@ -254,4 +304,16 @@ public class VideoChatViewActivity extends AppCompatActivity {
             surfaceView.setVisibility(muted ? View.GONE : View.VISIBLE);
         }
     }
+
+    public native int startAgoraEngine(Context context, boolean async);
+
+    public native int joinChannel(long engine, String channelId);
+
+    public native int stopAgoraEngine(Context context, long engine);
+
+    public native int setupLocalView(long engine, SurfaceView v);
+
+    public native int notifyReady(long engine);
+
+    public native int setupRemoteView(long engine, int uid);
 }
