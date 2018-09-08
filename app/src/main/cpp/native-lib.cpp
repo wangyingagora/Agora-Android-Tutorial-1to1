@@ -26,6 +26,9 @@ public:
 
     virtual int deliverFrame(const agora::media::IVideoFrame& videoFrame, int rotation, bool mirrored)
     {
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "external render: w - %d, h - %d, buffer size(y) - %d",
+                            videoFrame.width(), videoFrame.height(),
+                            strlen((const char*)videoFrame.buffer(agora::media::IVideoFrame::Y_PLANE)));
         return 0;
     }
 };
@@ -34,6 +37,7 @@ class ExternalVideoRenderFactory : public agora::media::IExternalVideoRenderFact
 {
     virtual agora::media::IExternalVideoRender* createRenderInstance(const agora::media::ExternalVideoRenerContext& context)
     {
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "external render: createRenderInstance");
         ExternalVideoRender* r = new ExternalVideoRender();
         return r;
     }
@@ -72,7 +76,7 @@ void AgoraEngine::createEngine(JNIEnv* env, jobject context)
 {
     mEngine.reset(createAgoraRtcEngine());
     agora::rtc::RtcEngineContext rtcContext;
-    rtcContext.appId = "";
+    rtcContext.appId = YOUR_APP_ID;
     mHandler.reset(new AgoraHandler(*this));
     rtcContext.eventHandler = mHandler.get();
     rtcContext.context = context;
@@ -95,14 +99,12 @@ void AgoraEngine::createEngine(JNIEnv* env, jobject context)
     jclass activityClass = env->GetObjectClass(mJavaActivity);
     mCreateRemoteViewMethodId = env->GetMethodID(activityClass, "createRemoteVideo", "(I)V");
 
-    /*
     agora::util::AutoPtr<agora::media::IMediaEngine> mediaEngine;
     mediaEngine.queryInterface(mEngine.get(), agora::AGORA_IID_MEDIA_ENGINE);
     if (mediaEngine) {
         // mediaEngine->registerVideoFrameObserver(&sVideoObserver);
-        mediaEngine->registerVideoRenderFactory(&sVideoFactory);
+        // mediaEngine->registerVideoRenderFactory(&sVideoFactory);
     }
-    */
 }
 
 int AgoraEngine::setupLocalVideo(JNIEnv* env, jobject thiz)
