@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 25
-    buildToolsVersion "25.0.2"
+    buildToolsVersion "27.0.3"
 
     defaultConfig {
         applicationId "io.agora.tutorials1v1vcall"
@@ -10,6 +10,33 @@ android {
         targetSdkVersion 25
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=gnustl_static",
+                        "-DANDROID_PLATFORM=android-19",
+                        "-DCMAKE_BUILD_TYPE=Debug",
+                        "-DANDROID_TOOLCHAIN=gcc",
+                        "-DCMAKE_CXX_FLAGS=-std=c++11",
+                        "-DANDROID_STL_FORCE_FEATURES=OFF",
+                        "-DANDROID_ARM_NEON=TRUE"
+            }
+        }
+        ndk {
+            abiFilters "armeabi-v7a" // DO NOT MODIFY THIS LINE, IT'S UPDATED BY BUILD MACHINE AUTOMATICALLY.
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+        }
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['libs']
+        }
     }
 
     buildTypes {
@@ -22,6 +49,6 @@ android {
 }
 
 dependencies {
-    compile fileTree(include: ['*.jar'], dir: 'libs')
-    compile 'com.android.support:appcompat-v7:25.3.1'
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation 'com.android.support:appcompat-v7:25.3.1'
 }
