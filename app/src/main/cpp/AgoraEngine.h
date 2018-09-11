@@ -18,6 +18,30 @@
 
 static const char* TAG = "cpp";
 
+class Packer {
+public:
+    Packer() :
+     lenght(2)
+    , position(2) {
+    }
+
+    void writeInt32(uint32_t val) {
+        memcpy(&buf[0] + position, &val, sizeof(val));
+        position += sizeof(val);
+        lenght += sizeof(val);
+    }
+
+    short length() {
+        return lenght;
+    }
+
+    const char* buffer() { return  &buf[0]; }
+private:
+    char buf[512];
+    int lenght;
+    int position;
+};
+
 class AgoraHandler;
 
 class AgoraEngine
@@ -56,9 +80,16 @@ public:
 
     virtual void onJoinChannelSuccess(const char* channel, uid_t uid, int elapsed) override {
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "joined channel: %s, uid: %u", channel, uid);
-        std::ostringstream oss;
-        oss << uid;
-        std::string payload(oss.str().c_str(), oss.str().length());
+
+        short position = 2;
+        char buf[512];
+        memcpy(&buf[0] + position, &uid, sizeof(uid));
+        position += sizeof(uid);
+        memcpy(&buf[0] + position, channel, strlen(channel));
+        position += strlen(channel);
+        memcpy(&buf[0], &position, sizeof(position));
+        std::string payload(&buf[0], position);
+
         mEngine.onMessage(1, &payload);
     }
 

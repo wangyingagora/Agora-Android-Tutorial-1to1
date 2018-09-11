@@ -281,7 +281,7 @@ public class VideoChatViewActivity extends AppCompatActivity {
                 EnvelopeMessage.JoinSuccess m = new EnvelopeMessage.JoinSuccess();
                 m.unmarshall(evt);
                 int uid = m.uid;
-                Log.d(LOG_TAG, "onJoinChannel success: " + uid);
+                Log.d(LOG_TAG, "joined channel: " + (uid & 0xFFFFFFFFL));
                 break;
             case 2:
                 break;
