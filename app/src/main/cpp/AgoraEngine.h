@@ -23,7 +23,7 @@ class AgoraEngine
 public:
     AgoraEngine(JNIEnv* env, jobject context, bool async);
     void createEngine(JNIEnv* env, jobject context);
-    int setupLocalVideo(JNIEnv* env, jobject thiz);
+    int setupLocalVideo(JNIEnv* env, jobject thiz, jobject view);
     int createRemoteVideo(uid_t uid);
     int setupRemoteVideo(JNIEnv* env, jobject thiz, uid_t uid);
     int joinChannel(const char* channelId);

@@ -252,7 +252,7 @@ public class VideoChatViewActivity extends AppCompatActivity {
         SurfaceView surfaceView = RtcEngine.CreateRendererView(getBaseContext());
         surfaceView.setZOrderMediaOverlay(true);
         container.addView(surfaceView);
-        setupLocalView(mEngine, null);
+        setupLocalView(mEngine, surfaceView);
         // mRtcEngine.setupLocalVideo(new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_ADAPTIVE, 0));
     }
 

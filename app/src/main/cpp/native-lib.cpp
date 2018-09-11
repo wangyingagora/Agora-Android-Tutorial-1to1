@@ -4,6 +4,17 @@
 extern "C" {
 #endif
 
+static inline bool checkJNIException(JNIEnv* env) {
+    bool r = false;
+    if (env->ExceptionCheck()) {
+        //__android_log_print(ANDROID_LOG_ERROR, TAG, "exception occurred at jni call safeCallStaticBoolMethod()");
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        r = true;
+    }
+    return r;
+}
+
 class AgoraVideoObserver : public agora::media::IVideoFrameObserver
 {
     virtual bool onCaptureVideoFrame(VideoFrame& videoFrame) {
@@ -99,23 +110,34 @@ void AgoraEngine::createEngine(JNIEnv* env, jobject context)
     jclass activityClass = env->GetObjectClass(mJavaActivity);
     mCreateRemoteViewMethodId = env->GetMethodID(activityClass, "createRemoteVideo", "(I)V");
 
+    /*
     agora::util::AutoPtr<agora::media::IMediaEngine> mediaEngine;
     mediaEngine.queryInterface(mEngine.get(), agora::AGORA_IID_MEDIA_ENGINE);
     if (mediaEngine) {
         // mediaEngine->registerVideoFrameObserver(&sVideoObserver);
         // mediaEngine->registerVideoRenderFactory(&sVideoFactory);
     }
+    */
 }
 
-int AgoraEngine::setupLocalVideo(JNIEnv* env, jobject thiz)
+int AgoraEngine::setupLocalVideo(JNIEnv* env, jobject thiz, jobject v)
 {
     jclass activityClass = env->GetObjectClass(thiz);
     jmethodID getViewMid = env->GetMethodID(activityClass, "getSurfaceView", "()Landroid/view/SurfaceView;");
     jobject view = env->CallObjectMethod(thiz, getViewMid);
+    if (checkJNIException(env)) {
+        return -agora::ERR_ABORTED;
+    }
 
     mEngine->setVideoProfile(agora::rtc::VIDEO_PROFILE_PORTRAIT_360P, false);
     agora::rtc::VideoCanvas canvas(view, agora::rtc::RENDER_MODE_HIDDEN, nullptr);
-    return mEngine->setupLocalVideo(canvas);
+    canvas.uid = 0;
+    canvas.priv = env;
+    int r = mEngine->setupLocalVideo(canvas);
+    if (r) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "set local video failed: %d", r);
+    }
+    return r;
 }
 
 int AgoraEngine::createRemoteVideo(uid_t uid)
@@ -168,7 +190,7 @@ JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_setu
     if (!e)
         return -1;
 
-    return e->setupLocalVideo(env, thiz);
+    return e->setupLocalVideo(env, thiz, v);
 }
 
 JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_setupRemoteView(JNIEnv * env, jobject thiz, jlong engine, jint uid)
