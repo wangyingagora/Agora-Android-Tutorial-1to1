@@ -61,6 +61,7 @@ JavaVM* gJvm = nullptr;
 
 AgoraEngine::AgoraEngine(JNIEnv* env, jobject context, bool async) :
     mCreateRemoteViewMethodId(nullptr)
+   , mOnMessageMethodId(nullptr)
    , mAsync(async)
 {
     if (mAsync) {
@@ -110,6 +111,8 @@ void AgoraEngine::createEngine(JNIEnv* env, jobject context)
     jclass activityClass = env->GetObjectClass(mJavaActivity);
     mCreateRemoteViewMethodId = env->GetMethodID(activityClass, "createRemoteVideo", "(I)V");
 
+    mOnMessageMethodId = env->GetMethodID(activityClass, "onMessage", "(I[B)V");
+
     /*
     agora::util::AutoPtr<agora::media::IMediaEngine> mediaEngine;
     mediaEngine.queryInterface(mEngine.get(), agora::AGORA_IID_MEDIA_ENGINE);
@@ -122,15 +125,17 @@ void AgoraEngine::createEngine(JNIEnv* env, jobject context)
 
 int AgoraEngine::setupLocalVideo(JNIEnv* env, jobject thiz, jobject v)
 {
+    /*
     jclass activityClass = env->GetObjectClass(thiz);
     jmethodID getViewMid = env->GetMethodID(activityClass, "getSurfaceView", "()Landroid/view/SurfaceView;");
     jobject view = env->CallObjectMethod(thiz, getViewMid);
     if (checkJNIException(env)) {
         return -agora::ERR_ABORTED;
     }
+    */
 
     mEngine->setVideoProfile(agora::rtc::VIDEO_PROFILE_PORTRAIT_360P, false);
-    agora::rtc::VideoCanvas canvas(view, agora::rtc::RENDER_MODE_HIDDEN, nullptr);
+    agora::rtc::VideoCanvas canvas(v, agora::rtc::RENDER_MODE_HIDDEN, nullptr);
     canvas.uid = 0;
     canvas.priv = env;
     int r = mEngine->setupLocalVideo(canvas);
@@ -160,11 +165,13 @@ int AgoraEngine::createRemoteVideo(uid_t uid)
     return 0;
 }
 
-int AgoraEngine::setupRemoteVideo(JNIEnv* env, jobject thiz, uid_t uid)
+int AgoraEngine::setupRemoteVideo(JNIEnv* env, jobject thiz, uid_t uid, jobject view)
 {
+    /*
     jclass activityClass = env->GetObjectClass(thiz);
     jmethodID getViewMid = env->GetMethodID(activityClass, "getRemoteSurfaceView", "()Landroid/view/SurfaceView;");
     jobject view = env->CallObjectMethod(thiz, getViewMid);
+    */
 
     agora::rtc::VideoCanvas canvas(view, agora::rtc::RENDER_MODE_HIDDEN, uid);
     return mEngine->setupRemoteVideo(canvas);
@@ -173,6 +180,58 @@ int AgoraEngine::setupRemoteVideo(JNIEnv* env, jobject thiz, uid_t uid)
 int AgoraEngine::joinChannel(const char* channelId)
 {
     return mEngine->joinChannel(nullptr, channelId, nullptr, 0);
+}
+
+int AgoraEngine::leaveChannel()
+{
+    return mEngine->leaveChannel();
+}
+
+int AgoraEngine::switchCamera()
+{
+    return mEngine->switchCamera();
+}
+
+int AgoraEngine::muteLocalAudioStream(bool mute)
+{
+    return mEngine->muteLocalAudioStream(mute);
+}
+
+int AgoraEngine::muteLocalVideoStream(bool mute)
+{
+    return mEngine->muteLocalVideoStream(mute);
+}
+
+int AgoraEngine::onMessage(int messageId, std::string* payload)
+{
+    if (!mOnMessageMethodId)
+        return -agora::ERR_NOT_INITIALIZED;
+
+    JNIEnv* env;
+    jint r = gJvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+    if (r == JNI_EDETACHED) {
+        // Attach the thread to the Java VM.
+        r = gJvm->AttachCurrentThread(&env, nullptr);
+    }
+
+    if (r || !env)
+        return -agora::ERR_NOT_READY;
+
+    jbyteArray jpayload = nullptr;
+    if (payload && !payload->empty())
+    {
+        jpayload = env->NewByteArray(payload->length());
+        if (!jpayload)
+            return -agora::ERR_FAILED;
+        env->SetByteArrayRegion(jpayload, 0, payload->length(), (jbyte*)payload->data());
+    }
+
+    env->CallVoidMethod(mJavaActivity, mOnMessageMethodId, (jint)messageId, jpayload);
+    checkJNIException(env);
+    if (jpayload)
+        env->DeleteLocalRef(jpayload);
+
+    return gJvm->DetachCurrentThread();
 }
 
 JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_startAgoraEngine(JNIEnv * env , jobject thiz,
@@ -187,37 +246,64 @@ JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_setu
     if (!engine) return -1;
 
     AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
-    if (!e)
-        return -1;
-
     return e->setupLocalVideo(env, thiz, v);
 }
 
-JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_setupRemoteView(JNIEnv * env, jobject thiz, jlong engine, jint uid)
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_setupRemoteView(JNIEnv * env, jobject thiz, jlong engine, jint uid, jobject view)
 {
     if (!engine) return -1;
 
     AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
-    if (!e)
-        return -1;
-
-    return e->setupRemoteVideo(env, thiz, uid);
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "c++2 uid: %u", uid);
+    return e->setupRemoteVideo(env, thiz, uid, view);
 }
 
-JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_joinChannel(JNIEnv* env , jobject thiz, jlong engine, jstring channelId)
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_joinChannel(JNIEnv* env, jobject thiz, jlong engine, jstring channelId)
 {
     if (!engine) return -1;
 
     AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
-    if (!e) return -1;
-
-    const char *nativeString = "aaaaaa"; //->GetStringUTFChars(channelId, JNI_FALSE);
-    // env->ReleaseStringUTFChars(channelId, nativeString);
-
+    const char *nativeString = env->GetStringUTFChars(channelId, JNI_FALSE);
+    env->ReleaseStringUTFChars(channelId, nativeString);
     return e->joinChannel(nativeString);
 }
 
-JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_stopAgoraEngine(JNIEnv * env , jobject thiz, jobject context, long engine)
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_leaveChannel(JNIEnv* env, jobject thiz, jlong engine)
+{
+    if (!engine) return -1;
+
+    AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
+    return e->leaveChannel();
+}
+
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_switchCamera(JNIEnv* env, jobject thiz,
+                                                                                         jlong engine)
+{
+    if (!engine) return -1;
+
+    AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
+    return e->switchCamera();
+}
+
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_muteLocalAudioStream(JNIEnv* env, jobject thiz,
+                                                                                                 jlong engine, jboolean mute)
+{
+    if (!engine) return -1;
+
+    AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
+    return e->muteLocalAudioStream(mute);
+}
+
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_muteLocalVideoStream(JNIEnv* env, jobject thiz,
+                                                                                                 jlong engine, jboolean mute)
+{
+    if (!engine) return -1;
+
+    AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
+    return e->muteLocalVideoStream(mute);
+}
+
+JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_stopAgoraEngine(JNIEnv * env , jobject thiz, jobject context, jlong engine)
 {
     AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
     if (!e) {

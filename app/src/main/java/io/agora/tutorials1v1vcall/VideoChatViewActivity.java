@@ -25,6 +25,7 @@ import io.agora.rtc.Constants;
 import io.agora.rtc.IRtcEngineEventHandler;
 import io.agora.rtc.RtcEngine;
 import io.agora.rtc.video.VideoCanvas;
+import io.agora.sdk.EnvelopeMessage;
 
 public class VideoChatViewActivity extends AppCompatActivity {
     static {
@@ -38,38 +39,6 @@ public class VideoChatViewActivity extends AppCompatActivity {
     private static final int PERMISSION_REQ_ID_CAMERA = PERMISSION_REQ_ID_RECORD_AUDIO + 1;
 
     private long mEngine;
-    private RtcEngine mRtcEngine;// Tutorial Step 1
-    private final IRtcEngineEventHandler mRtcEventHandler = new IRtcEngineEventHandler() { // Tutorial Step 1
-        @Override
-        public void onFirstRemoteVideoDecoded(final int uid, int width, int height, int elapsed) { // Tutorial Step 5
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    setupRemoteVideo(uid);
-                }
-            });
-        }
-
-        @Override
-        public void onUserOffline(int uid, int reason) { // Tutorial Step 7
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    onRemoteUserLeft();
-                }
-            });
-        }
-
-        @Override
-        public void onUserMuteVideo(final int uid, final boolean muted) { // Tutorial Step 10
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    onRemoteUserVideoMuted(uid, muted);
-                }
-            });
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,8 +114,8 @@ public class VideoChatViewActivity extends AppCompatActivity {
         super.onDestroy();
 
         leaveChannel();
-        RtcEngine.destroy();
-        mRtcEngine = null;
+        stopAgoraEngine(this, mEngine);
+        mEngine = 0;
     }
 
     // Tutorial Step 10
@@ -160,7 +129,8 @@ public class VideoChatViewActivity extends AppCompatActivity {
             iv.setColorFilter(getResources().getColor(R.color.colorPrimary), PorterDuff.Mode.MULTIPLY);
         }
 
-        mRtcEngine.muteLocalVideoStream(iv.isSelected());
+        // mRtcEngine.muteLocalVideoStream(iv.isSelected());
+        muteLocalVideoStream(mEngine, iv.isSelected());
 
         FrameLayout container = (FrameLayout) findViewById(R.id.local_video_view_container);
         SurfaceView surfaceView = (SurfaceView) container.getChildAt(0);
@@ -179,12 +149,14 @@ public class VideoChatViewActivity extends AppCompatActivity {
             iv.setColorFilter(getResources().getColor(R.color.colorPrimary), PorterDuff.Mode.MULTIPLY);
         }
 
-        mRtcEngine.muteLocalAudioStream(iv.isSelected());
+        // mRtcEngine.muteLocalAudioStream(iv.isSelected());
+        muteLocalAudioStream(mEngine, iv.isSelected());
     }
 
     // Tutorial Step 8
     public void onSwitchCameraClicked(View view) {
-        mRtcEngine.switchCamera();
+        //mRtcEngine.switchCamera();
+        switchCamera(mEngine);
     }
 
     // Tutorial Step 6
@@ -221,7 +193,7 @@ public class VideoChatViewActivity extends AppCompatActivity {
                 View tipMsg = findViewById(R.id.quick_tips_when_use_agora_sdk); // optional UI
                 tipMsg.setVisibility(View.GONE);
 
-                setupRemoteView(mEngine, uid);
+                setupRemoteView(mEngine, uid, surfaceView);
             }
         });
     }
@@ -229,22 +201,15 @@ public class VideoChatViewActivity extends AppCompatActivity {
     // Tutorial Step 1
     private void initializeAgoraEngine() {
         mEngine = startAgoraEngine(this, false);
-        /*
-        try {
-            mRtcEngine = RtcEngine.create(getBaseContext(), getString(R.string.agora_app_id), mRtcEventHandler);
-        } catch (Exception e) {
-            Log.e(LOG_TAG, Log.getStackTraceString(e));
-
-            throw new RuntimeException("NEED TO check rtc sdk init fatal error\n" + Log.getStackTraceString(e));
-        }
-        */
     }
 
     // Tutorial Step 2
+    /*
     private void setupVideoProfile() {
         mRtcEngine.enableVideo();
         mRtcEngine.setVideoProfile(Constants.VIDEO_PROFILE_360P, false);
     }
+    */
 
     // Tutorial Step 3
     private void setupLocalVideo() {
@@ -258,11 +223,12 @@ public class VideoChatViewActivity extends AppCompatActivity {
 
     // Tutorial Step 4
     private void joinChannel() {
-        joinChannel(mEngine, "aaaaaa");
+        joinChannel(mEngine, "aaaa");
         // mRtcEngine.joinChannel(null, "demoChannel1", "Extra Optional Data", 0); // if you do not specify the uid, we will generate the uid for you
     }
 
     // Tutorial Step 5
+    /*
     private void setupRemoteVideo(int uid) {
         FrameLayout container = (FrameLayout) findViewById(R.id.remote_video_view_container);
 
@@ -278,10 +244,12 @@ public class VideoChatViewActivity extends AppCompatActivity {
         View tipMsg = findViewById(R.id.quick_tips_when_use_agora_sdk); // optional UI
         tipMsg.setVisibility(View.GONE);
     }
+    */
 
     // Tutorial Step 6
     private void leaveChannel() {
-        mRtcEngine.leaveChannel();
+        // mRtcEngine.leaveChannel();
+        leaveChannel(mEngine);
     }
 
     // Tutorial Step 7
@@ -299,9 +267,50 @@ public class VideoChatViewActivity extends AppCompatActivity {
 
         SurfaceView surfaceView = (SurfaceView) container.getChildAt(0);
 
+        if (surfaceView == null) return;
+
         Object tag = surfaceView.getTag();
         if (tag != null && (Integer) tag == uid) {
             surfaceView.setVisibility(muted ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    public void onMessage(int eventId, byte[] evt) {
+        switch (eventId) {
+            case 1:
+                EnvelopeMessage.JoinSuccess m = new EnvelopeMessage.JoinSuccess();
+                m.unmarshall(evt);
+                int uid = m.uid;
+                Log.d(LOG_TAG, "onJoinChannel success: " + uid);
+                break;
+            case 2:
+                break;
+            case 3:
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        onRemoteUserLeft();
+                    }
+                });
+                break;
+            case 4:
+                final EnvelopeMessage.UserMuteVideo mv = new EnvelopeMessage.UserMuteVideo();
+                mv.unmarshall(evt);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        onRemoteUserVideoMuted(mv.uid, mv.mute);
+                    }
+                });
+                break;
+            case 5:
+                EnvelopeMessage.CreateRemoteVideo rv = new EnvelopeMessage.CreateRemoteVideo();
+                rv.unmarshall(evt);
+                Log.d(LOG_TAG, "c++3 uid: " + rv.uid);
+                // createRemoteVideo(rv.uid);
+                break;
+            default:
+                break;
         }
     }
 
@@ -309,11 +318,19 @@ public class VideoChatViewActivity extends AppCompatActivity {
 
     public native int joinChannel(long engine, String channelId);
 
+    public native int leaveChannel(long engine);
+
     public native int stopAgoraEngine(Context context, long engine);
 
     public native int setupLocalView(long engine, SurfaceView v);
 
     public native int notifyReady(long engine);
 
-    public native int setupRemoteView(long engine, int uid);
+    public native int setupRemoteView(long engine, int uid, SurfaceView view);
+
+    public native int switchCamera(long engine);
+
+    public native int muteLocalAudioStream(long engine, boolean mute);
+
+    public native int muteLocalVideoStream(long engine, boolean mute);
 }
