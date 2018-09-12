@@ -81,6 +81,20 @@ AgoraEngine::~AgoraEngine()
     if (mEngine) mEngine.reset();
 
     if (mHandler) mHandler.reset();
+
+    if (mJavaActivity) {
+        JNIEnv* env;
+        jint r = gJvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+        if (r == JNI_EDETACHED) {
+            // Attach the thread to the Java VM.
+            r = gJvm->AttachCurrentThread(&env, nullptr);
+        }
+        if (r)
+            return;
+
+        env->DeleteGlobalRef(mJavaActivity);
+        gJvm->DetachCurrentThread();
+    }
 }
 
 void AgoraEngine::createEngine(JNIEnv* env, jobject context)
