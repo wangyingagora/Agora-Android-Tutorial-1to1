@@ -7,7 +7,6 @@ extern "C" {
 static inline bool checkJNIException(JNIEnv* env) {
     bool r = false;
     if (env->ExceptionCheck()) {
-        //__android_log_print(ANDROID_LOG_ERROR, TAG, "exception occurred at jni call safeCallStaticBoolMethod()");
         env->ExceptionDescribe();
         env->ExceptionClear();
         r = true;
@@ -179,6 +178,7 @@ int AgoraEngine::setupRemoteVideo(JNIEnv* env, jobject thiz, uid_t uid, jobject 
 
 int AgoraEngine::joinChannel(const char* channelId)
 {
+    __android_log_print(ANDROID_LOG_ERROR, TAG, "join channel: %s", channelId);
     return mEngine->joinChannel(nullptr, channelId, nullptr, 0);
 }
 
@@ -264,8 +264,9 @@ JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_join
 
     AgoraEngine* e = reinterpret_cast<AgoraEngine*>(engine);
     const char *nativeString = env->GetStringUTFChars(channelId, JNI_FALSE);
+    int r = e->joinChannel(nativeString);
     env->ReleaseStringUTFChars(channelId, nativeString);
-    return e->joinChannel(nativeString);
+    return r;
 }
 
 JNIEXPORT int JNICALL Java_io_agora_tutorials1v1vcall_VideoChatViewActivity_leaveChannel(JNIEnv* env, jobject thiz, jlong engine)

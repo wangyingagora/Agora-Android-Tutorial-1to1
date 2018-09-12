@@ -13,32 +13,37 @@
 #include "agora/include/AgoraBase.h"
 #include "agora/include/IAgoraMediaEngine.h"
 
-#ifndef AGORACPPDEMO_AGORAENGINE_H
-#define AGORACPPDEMO_AGORAENGINE_H
+#pragma once
 
-static const char* TAG = "cpp";
+static const char* TAG = "AgoraEngine";
 
 class Packer {
 public:
     Packer() :
-     lenght(2)
-    , position(2) {
+      size(2),
+      position(2) {
     }
 
     void writeInt32(uint32_t val) {
         memcpy(&buf[0] + position, &val, sizeof(val));
         position += sizeof(val);
-        lenght += sizeof(val);
+        size += sizeof(val);
     }
 
-    short length() {
-        return lenght;
+    void writeBool(bool val) {
+        uint8_t v = (uint8_t)val;
+        memcpy(&buf[0] + position, &v, sizeof(v));
+        position += sizeof(v);
+        size += sizeof(v);
     }
 
-    const char* buffer() { return  &buf[0]; }
+    std::string marshall() {
+        memcpy(&buf[0], &buf[0] + 2, 2);
+        return std::string(&buf[0], size);
+    }
 private:
     char buf[512];
-    int lenght;
+    short size;
     int position;
 };
 
@@ -81,57 +86,47 @@ public:
     virtual void onJoinChannelSuccess(const char* channel, uid_t uid, int elapsed) override {
         __android_log_print(ANDROID_LOG_DEBUG, TAG, "joined channel: %s, uid: %u", channel, uid);
 
-        short position = 2;
-        char buf[512];
-        memcpy(&buf[0] + position, &uid, sizeof(uid));
-        position += sizeof(uid);
-        memcpy(&buf[0] + position, channel, strlen(channel));
-        position += strlen(channel);
-        memcpy(&buf[0], &position, sizeof(position));
-        std::string payload(&buf[0], position);
+        Packer packer;
+        packer.writeInt32(uid);
+        std::string payload = packer.marshall();
 
         mEngine.onMessage(1, &payload);
     }
 
     virtual void onUserJoined(uid_t uid, int elapsed) override {
-        __android_log_print(ANDROID_LOG_DEBUG, TAG, "joined user: %u", uid);
-        std::ostringstream oss;
-        oss << uid;
-        std::string payload(oss.str().c_str(), oss.str().length());
+        __android_log_print(ANDROID_LOG_DEBUG, TAG, "remote user joined: %u", uid);
+        Packer packer;
+        packer.writeInt32(uid);
+        std::string payload = packer.marshall();
+
         mEngine.onMessage(2, &payload);
     }
 
     virtual void onUserOffline(uid_t uid, agora::rtc::USER_OFFLINE_REASON_TYPE reason) {
-        std::ostringstream oss;
-        oss << uid << reason;
-        std::string payload(oss.str().c_str(), oss.str().length());
+        Packer packer;
+        packer.writeInt32(uid);
+        packer.writeInt32((int)reason);
+        std::string payload = packer.marshall();
         mEngine.onMessage(3, &payload);
     }
 
     virtual void onUserMuteVideo(uid_t uid, bool muted) {
-        std::ostringstream oss;
-        oss << uid << muted;
-        std::string payload(oss.str().c_str(), oss.str().length());
+        Packer packer;
+        packer.writeInt32(uid);
+        packer.writeBool(muted);
+        std::string payload = packer.marshall();
+
         mEngine.onMessage(4, &payload);
     }
 
     virtual void onFirstRemoteVideoDecoded(uid_t uid, int width, int height, int elapsed) {
-        /*
-        int position = 0;
-        std::vector<char> v;
-        v.resize(sizeof(uid));
-        position += sizeof(uid);
-        memcpy(&v[0], &uid, sizeof(uid));
-        std::string payload(&v[0], position);
-        mEngine.onMessage(5, &payload);
-        */
+        Packer packer;
+        packer.writeInt32(uid);
+        std::string payload = packer.marshall();
 
-        __android_log_print(ANDROID_LOG_DEBUG, TAG, "c++1 uid: %u, len: %d", uid);
-        mEngine.createRemoteVideo(uid);
+        mEngine.onMessage(5, &payload);
     }
 
 private:
     AgoraEngine& mEngine;
 };
-
-#endif //AGORACPPDEMO_AGORAENGINE_H
